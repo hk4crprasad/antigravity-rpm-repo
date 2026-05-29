@@ -1,13 +1,11 @@
 name: Update RPM Repository
 
 on:
-  release:
-    types: [published, edited]
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Release tag to process'
-        required: true
+  push:
+    branches:
+      - main
+    paths:
+      - 'incoming/*.rpm'
 
 permissions:
   contents: write
@@ -16,10 +14,8 @@ jobs:
   update-repo:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout main (for workflow ref)
+      - name: Checkout main
         uses: actions/checkout@v4
-        with:
-          ref: main
 
       - name: Checkout gh-pages
         uses: actions/checkout@v4
@@ -39,16 +35,10 @@ jobs:
           echo -e "5\ny\n" | gpg --batch --command-fd 0 \
             --edit-key "${{ secrets.GPG_KEY_ID }}" trust quit
 
-      - name: Download RPMs from release
+      - name: Copy RPMs to gh-pages
         run: |
           mkdir -p gh-pages-dir/packages
-          TAG=${{ github.event.release.tag_name || inputs.tag }}
-          gh release download $TAG \
-            --pattern "*.rpm" \
-            --dir gh-pages-dir/packages/ \
-            --clobber
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          cp incoming/*.rpm gh-pages-dir/packages/
 
       - name: Generate repo metadata
         run: createrepo_c --update gh-pages-dir/
@@ -63,12 +53,11 @@ jobs:
         run: |
           printf '[antigravity]\nname=Antigravity RPM Repository\nbaseurl=https://hk4crprasad.github.io/antigravity-rpm-repo/\nenabled=1\ngpgcheck=0\nrepo_gpgcheck=1\ngpgkey=https://hk4crprasad.github.io/antigravity-rpm-repo/RPM-GPG-KEY.asc\n' > gh-pages-dir/antigravity.repo
 
-      - name: Commit and push
+      - name: Commit and push gh-pages
         run: |
           cd gh-pages-dir
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -m "repo: update for ${{ github.event.release.tag_name || inputs.tag }}" \
-            || echo "Nothing to commit"
+          git commit -m "repo: update packages" || echo "Nothing to commit"
           git push origin gh-pages

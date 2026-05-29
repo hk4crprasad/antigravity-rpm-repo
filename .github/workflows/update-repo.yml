@@ -20,7 +20,7 @@ jobs:
       - name: Install tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y createrepo-c rpm gnupg2 rpmsign
+          sudo apt-get install -y createrepo-c rpm gnupg2 librpmsign9t64
 
       - name: Import GPG key
         run: |

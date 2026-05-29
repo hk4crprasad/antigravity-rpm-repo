@@ -1,12 +1,9 @@
 name: Update RPM Repository
-
 on:
   release:
     types: [published, edited]
-
 permissions:
   contents: write
-
 jobs:
   update-repo:
     runs-on: ubuntu-latest
@@ -20,7 +17,7 @@ jobs:
       - name: Install tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y createrepo-c rpm gnupg2 librpmsign9t64
+          sudo apt-get install -y createrepo-c rpm gnupg2
 
       - name: Import GPG key
         run: |
@@ -28,18 +25,23 @@ jobs:
           echo -e "5\ny\n" | gpg --batch --command-fd 0 \
             --edit-key "${{ secrets.GPG_KEY_ID }}" trust quit
 
-      - name: Download RPMs from release
+      - name: Download RPMs to temp folder
         run: |
-          mkdir -p packages
+          mkdir -p /tmp/rpms
           gh release download ${{ github.event.release.tag_name }} \
             --pattern "*.rpm" \
-            --dir packages/ \
+            --dir /tmp/rpms/ \
             --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Generate repo metadata
-        run: createrepo_c --update .
+        run: |
+          mkdir -p /tmp/repo
+          cp /tmp/rpms/*.rpm /tmp/repo/
+          createrepo_c /tmp/repo/
+          rm -rf repodata
+          cp -r /tmp/repo/repodata .
 
       - name: Sign repomd.xml
         run: |
@@ -49,7 +51,8 @@ jobs:
 
       - name: Write .repo file
         run: |
-          printf '[antigravity]\nname=Antigravity RPM Repository\nbaseurl=https://hk4crprasad.github.io/antigravity-rpm-repo/\nenabled=1\ngpgcheck=0\nrepo_gpgcheck=1\ngpgkey=https://hk4crprasad.github.io/antigravity-rpm-repo/RPM-GPG-KEY.asc\n' > antigravity.repo
+          TAG=${{ github.event.release.tag_name }}
+          printf "[antigravity]\nname=Antigravity RPM Repository\nbaseurl=https://github.com/hk4crprasad/antigravity-rpm-repo/releases/download/${TAG}/\nenabled=1\ngpgcheck=0\nrepo_gpgcheck=1\ngpgkey=https://hk4crprasad.github.io/antigravity-rpm-repo/RPM-GPG-KEY.asc\nmetadata_expire=1d\n" > antigravity.repo
 
       - name: Commit and push
         run: |

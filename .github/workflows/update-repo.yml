@@ -28,14 +28,6 @@ jobs:
           echo -e "5\ny\n" | gpg --batch --command-fd 0 \
             --edit-key "${{ secrets.GPG_KEY_ID }}" trust quit
 
-      - name: Configure RPM signing macros
-        run: |
-          cat >> ~/.rpmmacros <<MACROS
-          %_gpg_name ${{ secrets.GPG_KEY_ID }}
-          %__gpg /usr/bin/gpg
-          %_gpg_digest_algo sha256
-          MACROS
-
       - name: Download RPMs from release
         run: |
           mkdir -p packages
@@ -45,14 +37,6 @@ jobs:
             --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Sign RPMs
-        run: |
-          for rpm in packages/*.rpm; do
-            echo "Signing $rpm"
-            rpmsign --addsign \
-              --define "_gpg_name ${{ secrets.GPG_KEY_ID }}" "$rpm"
-          done
 
       - name: Generate repo metadata
         run: createrepo_c --update .
@@ -65,15 +49,7 @@ jobs:
 
       - name: Write .repo file
         run: |
-          cat > antigravity.repo <<REPO
-          [antigravity]
-          name=Antigravity RPM Repository
-          baseurl=https://hk4crprasad.github.io/antigravity-rpm-repo/
-          enabled=1
-          gpgcheck=1
-          repo_gpgcheck=1
-          gpgkey=https://hk4crprasad.github.io/antigravity-rpm-repo/RPM-GPG-KEY.asc
-          REPO
+          printf '[antigravity]\nname=Antigravity RPM Repository\nbaseurl=https://hk4crprasad.github.io/antigravity-rpm-repo/\nenabled=1\ngpgcheck=0\nrepo_gpgcheck=1\ngpgkey=https://hk4crprasad.github.io/antigravity-rpm-repo/RPM-GPG-KEY.asc\n' > antigravity.repo
 
       - name: Commit and push
         run: |

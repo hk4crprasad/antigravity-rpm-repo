@@ -49,15 +49,7 @@ jobs:
 
       - name: Write .repo file
         run: |
-          cat > antigravity.repo << 'REPO'
-[antigravity]
-name=Antigravity RPM Repository
-baseurl=https://hk4crprasad.github.io/antigravity-rpm-repo/
-enabled=1
-gpgcheck=0
-repo_gpgcheck=1
-gpgkey=https://hk4crprasad.github.io/antigravity-rpm-repo/RPM-GPG-KEY.asc
-REPO
+          printf '[antigravity]\nname=Antigravity RPM Repository\nbaseurl=https://hk4crprasad.github.io/antigravity-rpm-repo/\nenabled=1\ngpgcheck=0\nrepo_gpgcheck=1\ngpgkey=https://hk4crprasad.github.io/antigravity-rpm-repo/RPM-GPG-KEY.asc\n' > antigravity.repo
 
       - name: Commit and push
         run: |

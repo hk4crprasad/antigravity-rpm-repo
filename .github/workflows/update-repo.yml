@@ -1,11 +1,8 @@
 name: Update RPM Repository
 
 on:
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Release tag (e.g. v2.0.10)'
-        required: true
+  release:
+    types: [published, edited]
 
 permissions:
   contents: write
@@ -23,7 +20,7 @@ jobs:
       - name: Install tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y createrepo-c rpm gnupg2
+          sudo apt-get install -y createrepo-c rpm gnupg2 curl
 
       - name: Import GPG key
         run: |
@@ -31,18 +28,33 @@ jobs:
           echo -e "5\ny\n" | gpg --batch --command-fd 0 \
             --edit-key "${{ secrets.GPG_KEY_ID }}" trust quit
 
-      - name: Download RPMs from release
+      - name: Download RPMs temporarily
         run: |
-          mkdir -p packages
-          gh release download ${{ inputs.tag }} \
+          mkdir -p /tmp/packages
+          gh release download ${{ github.event.release.tag_name }} \
             --pattern "*.rpm" \
-            --dir packages/ \
+            --dir /tmp/packages/ \
             --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Generate repo metadata
-        run: createrepo_c --update .
+      - name: Generate metadata with release download URLs
+        run: |
+          TAG=${{ github.event.release.tag_name }}
+          RELEASE_BASE="https://github.com/${{ github.repository }}/releases/download/${TAG}"
+          
+          mkdir -p /tmp/repo
+          cp /tmp/packages/*.rpm /tmp/repo/
+          
+          # generate metadata
+          createrepo_c /tmp/repo/
+          
+          # copy only repodata (no RPMs) to gh-pages
+          rm -rf repodata
+          cp -r /tmp/repo/repodata .
+          
+          # write .repo pointing to github releases for actual RPMs
+          printf "[antigravity]\nname=Antigravity RPM Repository\nbaseurl=${RELEASE_BASE}/\nenabled=1\ngpgcheck=0\nrepo_gpgcheck=1\ngpgkey=https://hk4crprasad.github.io/antigravity-rpm-repo/RPM-GPG-KEY.asc\nmetadata_expire=1d\n" > antigravity.repo
 
       - name: Sign repomd.xml
         run: |
@@ -50,15 +62,11 @@ jobs:
             --default-key "${{ secrets.GPG_KEY_ID }}" \
             --detach-sign --armor repodata/repomd.xml
 
-      - name: Write .repo file
-        run: |
-          printf '[antigravity]\nname=Antigravity RPM Repository\nbaseurl=https://hk4crprasad.github.io/antigravity-rpm-repo/\nenabled=1\ngpgcheck=0\nrepo_gpgcheck=1\ngpgkey=https://hk4crprasad.github.io/antigravity-rpm-repo/RPM-GPG-KEY.asc\n' > antigravity.repo
-
       - name: Commit and push
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -m "repo: update for ${{ inputs.tag }}" \
+          git commit -m "repo: update for ${{ github.event.release.tag_name }}" \
             || echo "Nothing to commit"
           git push origin gh-pages
